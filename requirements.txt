@@ -1,2 +1,2 @@
-pystray
-requests
+pystray==0.19.5
+requests==2.32.5
