@@ -1,15 +1,16 @@
 import ctypes
+import json
 import os
 import sys
 import threading
 import time
-import requests
-from tkinter import *
-from PIL import Image, ImageTk
-from idlelib.tooltip import Hovertip
+import tkinter
+
 import pystray
-from pystray import Icon as Icon, MenuItem as MenuItem
-import darkdetect
+import requests
+from PIL import Image
+from pystray import Menu, MenuItem
+
 
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
@@ -17,119 +18,91 @@ def resource_path(relative_path):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath('.'), relative_path)
 
+
 REQUEST_TIMEOUT = 5
 IMG_DIR = resource_path("assets/images")
 PIRATE_FLAG = f"{IMG_DIR}/pirate_flag.png"
 
+with open(f"{resource_path('assets')}/cc_to_country.json") as f:
+    CC_TO_COUNTRY = json.load(f)
+
+
+def ip_prefer_method() -> dict:
+    """Return must include keys: ip, countryCode, country, city"""
+    r = requests.get("https://ipinfo.io/json", timeout=REQUEST_TIMEOUT)
+    r.raise_for_status()
+    data = r.json()
+    data['countryCode'] = data["country"]
+    data['country'] = CC_TO_COUNTRY[data['countryCode']]
+    return data
+
+
+def ip_fallback_method() -> dict:
+    """Return must include keys: ip, countryCode, country, city"""
+    r = requests.get("http://ip-api.com/json/", timeout=REQUEST_TIMEOUT)
+    r.raise_for_status()
+    data = r.json()
+    data["ip"] = data["query"]
+    return data
+
+
+def find_ip() -> None | dict:
+    try:
+        try:
+            return ip_prefer_method()
+        except requests.RequestException:
+            return ip_fallback_method()
+    except Exception as e:
+        print(e)
+
+
 class Application:
     def __init__(self):
         self.stop_program = False
-        self.state = 0
         self.last_ip = None
 
-        self.root = Tk()
-        self.root.overrideredirect(True)
+        self.root = tkinter.Tk()
 
-        self.root.title("MyIP Widget")
-        self.root.iconbitmap(f"{IMG_DIR}\\icon.ico")
-
-        self.detect_theme()
-
-        self.lab1 = Label(self.root, bg=self.bg_color)
-        self.lab1.bind("<Button-3>", self.hide_window)
-        self.lab2 = Label(self.root, bd=0, bg=self.bg_color, fg=self.fg_color, highlightthickness=0, borderwidth=0)
-        self.lab3 = Label(self.root, bd=0, bg=self.bg_color, fg=self.fg_color, highlightthickness=0, borderwidth=0)
-
-        self.lab1.grid(row=1, column=1)
-        self.lab2.grid(row=2, column=1)
-        self.lab3.grid(row=3, column=1)
-
-        Hovertip(self.lab1, 'right click to close')
-
-        self.icon = pystray.Icon("ping")
+        self.icon = pystray.Icon("My IP in System Tray")
         self.icon.icon = Image.open(PIRATE_FLAG)
+        self.icon.menu = Menu(MenuItem('Quit', lambda: self.quit_window()))
         self.icon.run_detached()
-        self.icon.menu = (
-            MenuItem('Quit', lambda: self.quit_window()),
-            MenuItem('Show', self.show_window)
-        )
-        # self.root.wm_attributes("-transparentcolor", self.bg_color)
-        self.root.attributes("-alpha", 0.7)
-        self.root.attributes('-topmost', True)
-        self.root.configure(bg=self.bg_color)
-        self.root.bind("<B1-Motion>", self.move_window)
 
         self.thread2 = threading.Thread(target=self.update_data)
         self.thread2.start()
-
-    def detect_theme(self):
-        theme = darkdetect.theme()
-
-        if theme == "Dark":
-            self.bg_color = "black"
-            self.fg_color = "white"
-        else:
-            self.bg_color = "white"
-            self.fg_color = "black"
-
-    def move_window(self, event):
-        self.root.geometry(f'+{event.x_root}+{event.y_root}')
+        self.root.withdraw()
 
     def quit_window(self):
+        print('Quit by user click')
         self.stop_program = True
         self.icon.icon = None
         self.icon.title = None
         self.icon.stop()
         self.root.destroy()
 
-    def show_window(self):
-        self.root.after(0, self.root.deiconify())
-
-    def hide_window(self, event):
-        self.root.withdraw()
-
-    def find_ip(self):
-        try:
-            req = requests.get("http://ip-api.com/json/", timeout=REQUEST_TIMEOUT)
-            if req.status_code == 200:
-                ip_data = req.json()
-                return ip_data
-            else:
-                return False
-        except Exception as e:
-            print(e)
-            return False
-
     def update_data(self):
         while not self.stop_program:
-            ip = self.find_ip()
+            ip = find_ip()
             if ip:
-                ip_address = ip["query"]
+                ip_address = ip["ip"]
                 if ip_address != self.last_ip:
                     self.last_ip = ip_address
-                    self.lab1.image = ImageTk.PhotoImage(image=Image.open(f"{IMG_DIR}\\flags\\{ip['countryCode']}.png"))
-                    self.lab1.config(image=self.lab1.image)
-                    self.lab2.config(text=ip["country"])
-                    self.lab3.config(text=ip_address)
                     self.icon.icon = Image.open(f"{IMG_DIR}\\flags\\{ip['countryCode']}.png")
-                    self.icon.title = ip_address
+                    self.icon.title = ip['country'] + '\n' + ip['city'] + '\n' + ip_address
             else:
                 self.last_ip = None
-                self.lab1.image = ImageTk.PhotoImage(file=PIRATE_FLAG)
-                self.lab1.config(image=self.lab1.image)
-                self.lab2.config(text="No Internet")
-                self.lab3.config(text="")
                 self.icon.icon = Image.open(PIRATE_FLAG)
+                self.icon.title = "No Internet"
             time.sleep(5)
 
     def run(self):
         try:
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)  # if your windows version >= 8.1
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)  # if your Windows version >= 8.1
         except:
             ctypes.windll.user32.SetProcessDPIAware()  # win 8.0 or less
 
         self.root.mainloop()
-        os._exit(1)
+        os._exit(42)
 
 
 if __name__ == '__main__':
