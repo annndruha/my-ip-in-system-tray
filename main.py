@@ -1,4 +1,5 @@
 import ctypes
+import json
 import os
 import sys
 import threading
@@ -8,7 +9,7 @@ import tkinter
 import pystray
 import requests
 from PIL import Image
-from pystray import MenuItem, Menu
+from pystray import Menu, MenuItem
 
 
 def resource_path(relative_path):
@@ -22,6 +23,38 @@ REQUEST_TIMEOUT = 5
 IMG_DIR = resource_path("assets/images")
 PIRATE_FLAG = f"{IMG_DIR}/pirate_flag.png"
 
+with open(f"{resource_path('assets')}/cc_to_country.json") as f:
+    CC_TO_COUNTRY = json.load(f)
+
+
+def ip_prefer_method() -> dict:
+    """Return must include keys: ip, countryCode, country, city"""
+    r = requests.get("https://ipinfo.io/json", timeout=REQUEST_TIMEOUT)
+    r.raise_for_status()
+    data = r.json()
+    data['countryCode'] = data["country"]
+    data['country'] = CC_TO_COUNTRY[data['countryCode']]
+    return data
+
+
+def ip_fallback_method() -> dict:
+    """Return must include keys: ip, countryCode, country, city"""
+    r = requests.get("http://ip-api.com/json/", timeout=REQUEST_TIMEOUT)
+    r.raise_for_status()
+    data = r.json()
+    data["ip"] = data["query"]
+    return data
+
+
+def find_ip() -> None | dict:
+    try:
+        try:
+            return ip_prefer_method()
+        except requests.RequestException:
+            return ip_fallback_method()
+    except Exception as e:
+        print(e)
+
 
 class Application:
     def __init__(self):
@@ -30,9 +63,8 @@ class Application:
 
         self.root = tkinter.Tk()
 
-        self.icon = pystray.Icon("ping")
+        self.icon = pystray.Icon("My IP in System Tray")
         self.icon.icon = Image.open(PIRATE_FLAG)
-        self.icon.default_action = self.on_left_click
         self.icon.menu = Menu(MenuItem('Quit', lambda: self.quit_window()))
         self.icon.run_detached()
 
@@ -40,30 +72,19 @@ class Application:
         self.thread2.start()
         self.root.withdraw()
 
-    def on_left_click(self):
-        print(f"Tray icon clicked! Current IP: {self.last_ip}")
-
     def quit_window(self):
+        print('Quit by user click')
         self.stop_program = True
         self.icon.icon = None
         self.icon.title = None
         self.icon.stop()
         self.root.destroy()
 
-    @staticmethod
-    def find_ip() -> None | dict:
-        try:
-            req = requests.get("http://ip-api.com/json/", timeout=REQUEST_TIMEOUT)
-            req.raise_for_status()
-            return req.json()
-        except Exception as e:
-            print(e)
-
     def update_data(self):
         while not self.stop_program:
-            ip = self.find_ip()
+            ip = find_ip()
             if ip:
-                ip_address = ip["query"]
+                ip_address = ip["ip"]
                 if ip_address != self.last_ip:
                     self.last_ip = ip_address
                     self.icon.icon = Image.open(f"{IMG_DIR}\\flags\\{ip['countryCode']}.png")
