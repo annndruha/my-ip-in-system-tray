@@ -1,3 +1,2 @@
-darkdetect
 pystray
 requests
