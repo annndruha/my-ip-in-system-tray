@@ -8,7 +8,7 @@ import tkinter
 import pystray
 import requests
 from PIL import Image
-from pystray import MenuItem
+from pystray import MenuItem, Menu
 
 
 def resource_path(relative_path):
@@ -32,14 +32,16 @@ class Application:
 
         self.icon = pystray.Icon("ping")
         self.icon.icon = Image.open(PIRATE_FLAG)
+        self.icon.default_action = self.on_left_click
+        self.icon.menu = Menu(MenuItem('Quit', lambda: self.quit_window()))
         self.icon.run_detached()
-        self.icon.menu = (
-            MenuItem('Quit', lambda: self.quit_window()),
-        )
 
         self.thread2 = threading.Thread(target=self.update_data)
         self.thread2.start()
         self.root.withdraw()
+
+    def on_left_click(self):
+        print(f"Tray icon clicked! Current IP: {self.last_ip}")
 
     def quit_window(self):
         self.stop_program = True
