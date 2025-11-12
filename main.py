@@ -27,20 +27,20 @@ with open(resource_path("assets/cc_to_country.json")) as f:
 
 def ip_prefer_method() -> dict:
     """Return must include keys: ip, countryCode, country, city"""
-    r = requests.get("https://ipinfo.io/json", timeout=REQUEST_TIMEOUT)
+    r = requests.get("http://ip-api.com/json/?fields=country,countryCode,city,query", timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
     data = r.json()
-    data["countryCode"] = data["country"]
-    data["country"] = CC_TO_COUNTRY[data["countryCode"]]
+    data["ip"] = data["query"]
     return data
 
 
 def ip_fallback_method() -> dict:
     """Return must include keys: ip, countryCode, country, city"""
-    r = requests.get("http://ip-api.com/json/", timeout=REQUEST_TIMEOUT)
+    r = requests.get("https://ipinfo.io/json", timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
     data = r.json()
-    data["ip"] = data["query"]
+    data["countryCode"] = data["country"]
+    data["country"] = CC_TO_COUNTRY[data["countryCode"]]
     return data
 
 
