@@ -5,6 +5,7 @@ pyinstaller --clean ^
   --add-data=assets/;assets/ ^
   --icon assets/images/icon.ico ^
   --distpath . ^
+  --version-file=version.txt
   --hidden-import json ^
   --hidden-import ctypes ^
   --hidden-import pystray ^
