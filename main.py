@@ -1,5 +1,6 @@
 import ctypes
 import json
+import logging
 import os
 import sys
 import threading
@@ -27,16 +28,18 @@ with open(resource_path("assets/cc_to_country.json")) as f:
 
 def ip_prefer_method() -> dict:
     """Return must include keys: ip, countryCode, country, city"""
-    r = requests.get("http://ip-api.com/json/?fields=country,countryCode,city,query", timeout=REQUEST_TIMEOUT)
+    url = "http://ip-api.com/json/?fields=country,countryCode,city,query"
+    r = requests.get(url, timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
     data = r.json()
     data["ip"] = data["query"]
     return data
 
 
-def ip_fallback_method() -> dict:
+def ip_second_method() -> dict:
     """Return must include keys: ip, countryCode, country, city"""
-    r = requests.get("https://ipinfo.io/json", timeout=REQUEST_TIMEOUT)
+    url = "https://ipinfo.io/json"
+    r = requests.get(url, timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
     data = r.json()
     data["countryCode"] = data["country"]
@@ -47,11 +50,14 @@ def ip_fallback_method() -> dict:
 def find_ip() -> None | dict:
     try:
         try:
-            return ip_prefer_method()
+            try:
+                return ip_prefer_method()
+            except requests.RequestException:
+                return ip_second_method()
         except requests.RequestException:
-            return ip_fallback_method()
+            return None
     except Exception as e:
-        print(e)
+        logging.exception(e)
 
 
 class Application:
@@ -78,16 +84,25 @@ class Application:
         self.icon.stop()
         self.root.destroy()
 
+    def __update_tray(self, ip_data: dict):
+        ip_address = ip_data["ip"]
+        country = ip_data.get("country", "Unknown country")
+        city = ip_data.get("city", "Unknown city")
+
+        cc = ip_data.get('countryCode', None)
+        if cc and cc in CC_TO_COUNTRY:
+            icon_path = resource_path(f"assets/images/flags/{cc}.png")
+            self.icon.icon = Image.open(icon_path)
+
+        self.icon.title = f"{country}\n{city}\n{ip_address}"
+
     def update_data(self):
         while not self.stop_program:
-            ip = find_ip()
-            if ip:
-                ip_address = ip["ip"]
-                if ip_address != self.last_ip:
-                    self.last_ip = ip_address
-                    icon_path = resource_path(f"assets/images/flags/{ip['countryCode']}.png")
-                    self.icon.icon = Image.open(icon_path)
-                    self.icon.title = ip["country"] + "\n" + ip["city"] + "\n" + ip_address
+            ip_data = find_ip()
+            if ip_data:
+                if ip_data["ip"] != self.last_ip:
+                    self.last_ip = ip_data["ip"]
+                    self.__update_tray(ip_data)
             else:
                 self.last_ip = None
                 self.icon.icon = Image.open(PIRATE_FLAG)
