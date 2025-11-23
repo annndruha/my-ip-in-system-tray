@@ -42,8 +42,9 @@ def ip_second_method() -> dict:
     r = requests.get(url, timeout=REQUEST_TIMEOUT)
     r.raise_for_status()
     data = r.json()
-    data["countryCode"] = data["country"]
-    data["country"] = CC_TO_COUNTRY[data["countryCode"]]
+    cc = data["country"]
+    data["countryCode"] = cc
+    data["country"] = CC_TO_COUNTRY.get(cc, "Unknown country")
     return data
 
 
