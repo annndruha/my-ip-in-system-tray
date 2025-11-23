@@ -3,9 +3,9 @@ import json
 import logging
 import os
 import sys
-import threading
+# import threading
 import time
-import tkinter
+# import tkinter
 
 import pystray
 import requests
@@ -66,16 +66,16 @@ class Application:
         self.stop_program = False
         self.last_ip = None
 
-        self.root = tkinter.Tk()
+        # self.root = tkinter.Tk()
 
         self.icon = pystray.Icon("My IP in System Tray")
         self.icon.icon = Image.open(PIRATE_FLAG)
         self.icon.menu = pystray.Menu(pystray.MenuItem("Quit", lambda: self.quit_window()))
         self.icon.run_detached()
 
-        self.thread2 = threading.Thread(target=self.update_data)
-        self.thread2.start()
-        self.root.withdraw()
+        # self.thread2 = threading.Thread(target=self.update_data)
+        # self.thread2.start()
+        # self.root.withdraw()
 
     def quit_window(self):
         print("Quit by user click")
@@ -83,7 +83,7 @@ class Application:
         self.icon.icon = None
         self.icon.title = None
         self.icon.stop()
-        self.root.destroy()
+        # self.root.destroy()
 
     def __update_tray(self, ip_data: dict):
         ip_address = ip_data["ip"]
@@ -114,9 +114,11 @@ class Application:
         try:
             ctypes.windll.shcore.SetProcessDpiAwareness(1)  # if your Windows version >= 8.1
         except: # noqa
-            ctypes.windll.user32.SetProcessDPIAware()  # win 8.0 or less
+            pass
+            # ctypes.windll.user32.SetProcessDPIAware()  # win 8.0 or less
 
-        self.root.mainloop()
+        # self.root.mainloop()
+        self.update_data()
         os._exit(42) # noqa
 
 
